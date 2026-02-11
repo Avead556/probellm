@@ -1,0 +1,40 @@
+{
+    "name": "probellm/probellm",
+    "description": "A PHP testing framework for LLM-powered agents. Built on top of PHPUnit/Pest.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Avead556",
+            "homepage": "https://github.com/Avead556"
+        }
+    ],
+    "require": {
+        "php": "^8.4",
+        "ext-curl": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0|^12.0",
+        "orchestra/testbench": "^9.0|^10.0",
+        "friendsofphp/php-cs-fixer": "^3.93"
+    },
+    "autoload": {
+        "psr-4": {
+            "ProbeLLM\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "ProbeLLM\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "ProbeLLM\\ProbeLLMServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

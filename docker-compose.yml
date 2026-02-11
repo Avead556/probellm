@@ -1,0 +1,19 @@
+services:
+  tests:
+    build: .
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./vendor:/app/vendor
+      - ./phpunit.xml:/app/phpunit.xml
+    environment:
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_BASE_URL=${LLM_BASE_URL:-https://api.openai.com/v1}
+
+  cs-fix:
+    build: .
+    entrypoint: ["php", "/app/vendor/bin/php-cs-fixer"]
+    command: ["fix", "--diff"]
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
