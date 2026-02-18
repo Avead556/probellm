@@ -6,6 +6,7 @@ namespace ProbeLLM\Provider;
 
 use ProbeLLM\DTO\CompletionOptions;
 use ProbeLLM\DTO\Message;
+use ProbeLLM\DTO\ProviderResult;
 use ProbeLLM\DTO\ToolDefinition;
 
 interface LLMProvider

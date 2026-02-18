@@ -4,18 +4,14 @@ declare(strict_types=1);
 
 namespace ProbeLLM\DSL;
 
+use PHPUnit\Framework\Assert;
 use ProbeLLM\Cassette\CassetteResolver;
 use ProbeLLM\Cassette\CassetteStore;
-use ProbeLLM\Cassette\Hasher;
-use ProbeLLM\DTO\CassetteSource;
 use ProbeLLM\DTO\CompletionOptions;
-use ProbeLLM\DTO\JudgeVerdict;
-use ProbeLLM\DTO\Message;
+use ProbeLLM\DTO\ProviderResult;
 use ProbeLLM\DTO\ToolCall;
 use ProbeLLM\Exception\InvalidResponseException;
 use ProbeLLM\Provider\LLMProvider;
-use ProbeLLM\Provider\ProviderResult;
-use PHPUnit\Framework\Assert;
 
 final class AnswerExpectations
 {
@@ -184,60 +180,19 @@ final class AnswerExpectations
         ?string $model = null,
         ?float $temperature = null,
     ): self {
-        $judgeSystem = <<<'PROMPT'
-You are a strict test evaluator. You will receive an AI assistant's response and evaluation criteria.
-Evaluate whether the response fully satisfies the criteria.
-You MUST respond with ONLY a JSON object in this exact format, no other text:
-{"pass": true, "reason": "brief explanation"}
-or
-{"pass": false, "reason": "brief explanation of what failed"}
-PROMPT;
-
-        $judgeUser = <<<PROMPT
-## Assistant's response:
-{$this->result->getContent()}
-
-## Evaluation criteria:
-{$criteria}
-PROMPT;
-
         $judgeModel = $model ?? $this->judgeModel ?? $this->providerOptions->getModel();
         $resolvedTemperature = $temperature ?? $this->judgeTemperature ?? 0.0;
-        $options = new CompletionOptions(
+
+        JudgeRunner::assertPassed(
+            provider: $this->judgeProvider ?? $this->provider,
+            resolver: $this->cassetteResolver,
+            content: $this->result->getContent(),
+            contentLabel: "Assistant's response",
+            criteria: $criteria,
+            testName: 'judge:' . $this->testName . ':' . $this->turnIndex,
+            judgeIndex: $this->judgeIndex,
             model: $judgeModel,
             temperature: $resolvedTemperature,
-        );
-
-        $judgeMessages = [
-            Message::system($judgeSystem),
-            Message::user($judgeUser),
-        ];
-
-        $judgeTestName = 'judge:' . $this->testName . ':' . $this->turnIndex . ':' . $this->judgeIndex;
-        $cassetteKey = Hasher::make($judgeSystem, $judgeMessages, $judgeModel, $resolvedTemperature, [], $judgeTestName, 0);
-        $this->judgeIndex++;
-
-        $provider = $this->judgeProvider ?? $this->provider;
-
-        $judgeResult = $this->cassetteResolver->resolve(
-            $cassetteKey,
-            fn(): ProviderResult => $provider->complete($judgeMessages, [], $options),
-            fn(): array => [
-                'messages' => array_map(static fn(Message $m): array => $m->toArray(), $judgeMessages),
-                'options' => $options->toArray(),
-                'tools' => [],
-            ],
-            ['model' => $options->getModel(), 'temperature' => $options->getTemperature(), 'provider' => CassetteSource::JUDGE->value],
-        );
-
-        $verdict = JudgeVerdict::fromJson($judgeResult->getContent());
-
-        Assert::assertTrue(
-            $verdict->isPassed(),
-            "LLM judge failed assertion.\n"
-            . "Criteria: {$criteria}\n"
-            . 'Reason: ' . $verdict->getReason() . "\n"
-            . 'Assistant response: ' . mb_substr($this->result->getContent(), 0, 300),
         );
 
         return $this;

@@ -2,11 +2,9 @@
 
 declare(strict_types=1);
 
-namespace ProbeLLM\Provider;
+namespace ProbeLLM\DTO;
 
-use ProbeLLM\DTO\ToolCall;
-
-final class ProviderResult
+final readonly class ProviderResult
 {
     /**
      * @param string               $content   Assistant text content (may be empty when tool calls present).
@@ -14,9 +12,9 @@ final class ProviderResult
      * @param array<string, mixed> $meta      Arbitrary metadata (model, usage, etc.).
      */
     public function __construct(
-        private readonly string $content,
-        private readonly array $toolCalls = [],
-        private readonly array $meta = [],
+        private string $content,
+        private array $toolCalls = [],
+        private array $meta = [],
     ) {}
 
     public function getContent(): string

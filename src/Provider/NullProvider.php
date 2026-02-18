@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ProbeLLM\Provider;
 
 use ProbeLLM\DTO\CompletionOptions;
+use ProbeLLM\DTO\ProviderResult;
 use ProbeLLM\Exception\ConfigurationException;
 
 /**

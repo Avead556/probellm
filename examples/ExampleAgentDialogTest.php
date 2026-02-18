@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ProbeLLM\Tests\Unit;
+namespace ProbeLLM\Examples;
 
 use ProbeLLM\AgentTestCase;
 use ProbeLLM\Attributes\AgentModel;

@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace ProbeLLM\DTO;
 
+use ProbeLLM\Enum\MessageRole;
+
 final readonly class Message
 {
     /**
-     * @param list<ToolCall>|null $toolCalls
+     * @param list<ToolCall>|null       $toolCalls
+     * @param list<Attachment>|null     $attachments
      */
     public function __construct(
         private MessageRole $role,
@@ -15,6 +18,7 @@ final readonly class Message
         private ?array $toolCalls = null,
         private ?string $toolCallId = null,
         private ?string $name = null,
+        private ?array $attachments = null,
     ) {}
 
     public function getRole(): MessageRole
@@ -45,6 +49,14 @@ final readonly class Message
         return $this->name;
     }
 
+    /**
+     * @return list<Attachment>|null
+     */
+    public function getAttachments(): ?array
+    {
+        return $this->attachments;
+    }
+
     public static function system(string $content): self
     {
         return new self(role: MessageRole::SYSTEM, content: $content);
@@ -53,6 +65,18 @@ final readonly class Message
     public static function user(string $content): self
     {
         return new self(role: MessageRole::USER, content: $content);
+    }
+
+    /**
+     * @param list<Attachment> $attachments
+     */
+    public static function userWithAttachments(string $content, array $attachments): self
+    {
+        return new self(
+            role: MessageRole::USER,
+            content: $content,
+            attachments: $attachments !== [] ? $attachments : null,
+        );
     }
 
     /**
@@ -109,6 +133,13 @@ final readonly class Message
                     'arguments' => json_encode($tc->getArguments(), JSON_THROW_ON_ERROR),
                 ],
             ], $this->toolCalls);
+        }
+
+        if ($this->attachments !== null) {
+            $arr['attachments'] = array_map(
+                static fn(Attachment $a): array => $a->toArray(),
+                $this->attachments,
+            );
         }
 
         return $arr;

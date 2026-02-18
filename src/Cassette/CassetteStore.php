@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace ProbeLLM\Cassette;
 
+use JsonException;
 use ProbeLLM\DTO\CassetteData;
+use ProbeLLM\DTO\ProviderResult;
 use ProbeLLM\Exception\CassetteMissingException;
-use ProbeLLM\Provider\ProviderResult;
 use Throwable;
 
 final class CassetteStore
@@ -29,7 +30,7 @@ final class CassetteStore
     /**
      * Load a cassette and return a ProviderResult.
      *
-     * @throws CassetteMissingException When cassette file is missing or unreadable.
+     * @throws CassetteMissingException|JsonException When cassette file is missing or unreadable.
      */
     public function load(string $key): ProviderResult
     {

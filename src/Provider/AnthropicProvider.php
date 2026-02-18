@@ -7,25 +7,25 @@ namespace ProbeLLM\Provider;
 use ProbeLLM\DTO\Anthropic\AnthropicRequest;
 use ProbeLLM\DTO\Anthropic\AnthropicResponse;
 use ProbeLLM\DTO\CompletionOptions;
-use ProbeLLM\Exception\ConfigurationException;
-use ProbeLLM\Exception\ProviderException;
-use JsonException;
+use ProbeLLM\DTO\ProviderResult;
+use ProbeLLM\Enum\BaseUrl;
+use ProbeLLM\Http\HttpClient;
 
 /**
  * Native Anthropic API provider (Claude models).
  */
-final class AnthropicProvider implements LLMProvider
+final readonly class AnthropicProvider implements LLMProvider
 {
+    private string $baseUrl;
+
     public function __construct(
-        private readonly string $apiKey,
-        private readonly string $baseUrl = 'https://api.anthropic.com',
-        private readonly string $apiVersion = '2023-06-01',
-        private readonly int $maxTokens = 4096,
-        private readonly int $timeout = 60,
+        private string $apiKey,
+        string $baseUrl = '',
+        private string $apiVersion = '2023-06-01',
+        private int $maxTokens = 4096,
+        private int $timeout = 60,
     ) {
-        if (! extension_loaded('curl')) {
-            throw new ConfigurationException('AnthropicProvider requires the curl PHP extension.');
-        }
+        $this->baseUrl = $baseUrl !== '' ? $baseUrl : BaseUrl::ANTHROPIC->value;
     }
 
     public function complete(array $messages, array $tools, CompletionOptions $options): ProviderResult
@@ -34,43 +34,16 @@ final class AnthropicProvider implements LLMProvider
 
         $url = rtrim($this->baseUrl, '/') . '/v1/messages';
 
-        $ch = curl_init($url);
-
-        if ($ch === false) {
-            throw new ProviderException('Failed to init curl handle.');
-        }
-
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_HTTPHEADER => [
-                'Content-Type: application/json',
+        $json = HttpClient::postJson(
+            $url,
+            [
                 'x-api-key: ' . $this->apiKey,
                 'anthropic-version: ' . $this->apiVersion,
             ],
-            CURLOPT_POSTFIELDS => json_encode($request->toArray(), JSON_THROW_ON_ERROR),
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => $this->timeout,
-        ]);
-
-        $raw = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error = curl_error($ch);
-
-        if ($raw === false) {
-            throw new ProviderException("Anthropic request failed: {$error}");
-        }
-
-        if ($code !== 200) {
-            throw new ProviderException(
-                "Anthropic API returned HTTP {$code}: " . mb_substr((string) $raw, 0, 500),
-            );
-        }
-
-        try {
-            $json = json_decode((string) $raw, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException $e) {
-            throw new ProviderException('Anthropic returned invalid JSON: ' . $e->getMessage());
-        }
+            $request->toArray(),
+            $this->timeout,
+            'Anthropic',
+        );
 
         $response = AnthropicResponse::fromArray($json);
 

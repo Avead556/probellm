@@ -4,20 +4,22 @@ declare(strict_types=1);
 
 namespace ProbeLLM\Cassette;
 
-use ProbeLLM\Provider\ProviderResult;
+use JsonException;
+use ProbeLLM\DTO\ProviderResult;
 
-final class CassetteResolver
+final readonly class CassetteResolver
 {
     public function __construct(
-        private readonly CassetteStore $store,
-        private readonly bool $replayMode,
+        private CassetteStore $store,
+        private bool $replayMode,
     ) {}
 
     /**
-     * @param string                              $cassetteKey   SHA256 cassette key.
-     * @param callable(): ProviderResult          $callProvider  Invokes the LLM provider.
-     * @param callable(): array<string, mixed>    $buildRequest  Builds the request payload for cassette storage.
-     * @param array<string, mixed>                $meta          Extra metadata for the cassette.
+     * @param string $cassetteKey SHA256 cassette key.
+     * @param callable(): ProviderResult $callProvider Invokes the LLM provider.
+     * @param callable(): array<string, mixed> $buildRequest Builds the request payload for cassette storage.
+     * @param array<string, mixed> $meta Extra metadata for the cassette.
+     * @throws JsonException
      */
     public function resolve(
         string $cassetteKey,

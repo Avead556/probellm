@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ProbeLLM\DTO;
+namespace ProbeLLM\Enum;
 
 enum MessageRole: string
 {

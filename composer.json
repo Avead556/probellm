@@ -25,7 +25,8 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "ProbeLLM\\Tests\\": "tests/"
+            "ProbeLLM\\Tests\\": "tests/",
+            "ProbeLLM\\Examples\\": "examples/"
         }
     },
     "extra": {

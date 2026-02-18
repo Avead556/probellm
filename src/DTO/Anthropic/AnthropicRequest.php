@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace ProbeLLM\DTO\Anthropic;
 
+use ProbeLLM\DTO\Attachment;
 use ProbeLLM\DTO\CompletionOptions;
 use ProbeLLM\DTO\Message;
 use ProbeLLM\DTO\ToolDefinition;
+use ProbeLLM\Enum\AttachmentType;
 
 final readonly class AnthropicRequest
 {
@@ -85,6 +87,20 @@ final readonly class AnthropicRequest
                 continue;
             }
 
+            $attachments = $message->getAttachments();
+
+            if ($attachments !== null && $attachments !== []) {
+                $content = [['type' => 'text', 'text' => $message->getContent()]];
+
+                foreach ($attachments as $attachment) {
+                    $content[] = self::attachmentToBlock($attachment);
+                }
+
+                $converted[] = ['role' => 'user', 'content' => $content];
+
+                continue;
+            }
+
             $converted[] = ['role' => 'user', 'content' => $message->getContent()];
         }
 
@@ -125,5 +141,42 @@ final readonly class AnthropicRequest
         }
 
         return $payload;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function attachmentToBlock(Attachment $attachment): array
+    {
+        return match ($attachment->getType()) {
+            AttachmentType::IMAGE => [
+                'type' => 'image',
+                'source' => $attachment->isUrl()
+                    ? ['type' => 'url', 'url' => $attachment->getData()]
+                    : [
+                        'type' => 'base64',
+                        'media_type' => $attachment->getMimeType(),
+                        'data' => $attachment->getData(),
+                    ],
+            ],
+            AttachmentType::PDF => [
+                'type' => 'document',
+                'source' => $attachment->isUrl()
+                    ? ['type' => 'url', 'url' => $attachment->getData()]
+                    : [
+                        'type' => 'base64',
+                        'media_type' => $attachment->getMimeType(),
+                        'data' => $attachment->getData(),
+                    ],
+            ],
+            AttachmentType::AUDIO => [
+                'type' => 'document',
+                'source' => [
+                    'type' => 'base64',
+                    'media_type' => $attachment->getMimeType(),
+                    'data' => $attachment->getData(),
+                ],
+            ],
+        };
     }
 }

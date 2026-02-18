@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace ProbeLLM\DTO\OpenAI;
 
-use ProbeLLM\DTO\ToolCall;
 use JsonException;
+use ProbeLLM\DTO\ToolCall;
 
 final readonly class OpenAIMessage
 {

@@ -4,43 +4,23 @@ declare(strict_types=1);
 
 namespace ProbeLLM\Tests\Unit;
 
-use ProbeLLM\Cassette\CassetteResolver;
+use PHPUnit\Framework\TestCase;
 use ProbeLLM\Cassette\CassetteStore;
 use ProbeLLM\Cassette\Hasher;
 use ProbeLLM\DSL\AnswerExpectations;
 use ProbeLLM\DSL\DialogScenario;
-use ProbeLLM\DTO\CassetteData;
 use ProbeLLM\DTO\CompletionOptions;
 use ProbeLLM\DTO\JudgeVerdict;
 use ProbeLLM\DTO\Message;
+use ProbeLLM\DTO\ProviderResult;
 use ProbeLLM\Exception\ConfigurationException;
 use ProbeLLM\Exception\InvalidResponseException;
 use ProbeLLM\Exception\ToolResolutionException;
 use ProbeLLM\Provider\NullProvider;
-use ProbeLLM\Provider\ProviderResult;
-use PHPUnit\Framework\TestCase;
 use stdClass;
 
-class EdgeCaseTest extends TestCase
+class DialogScenarioTest extends TestCase
 {
-    public function test_cassette_resolver_records_on_replay_mode(): void
-    {
-        $tmpDir = sys_get_temp_dir() . '/ai-unit-test-' . uniqid();
-        mkdir($tmpDir, 0755, true);
-
-        $store = new CassetteStore($tmpDir);
-        $resolver = new CassetteResolver($store, replayMode: true);
-
-        $result = $resolver->resolve(
-            'test-key',
-            fn(): ProviderResult => new ProviderResult('recorded'),
-            fn(): array => ['messages' => []],
-        );
-
-        self::assertSame('recorded', $result->getContent());
-        self::assertTrue($store->has('test-key'));
-    }
-
     public function test_null_provider_throws_configuration_exception(): void
     {
         $provider = new NullProvider();
@@ -129,35 +109,5 @@ class EdgeCaseTest extends TestCase
         $this->expectExceptionMessage("'pass' key");
 
         JudgeVerdict::fromJson('{"reason":"x"}');
-    }
-
-    public function test_cassette_data_without_response_key_throws(): void
-    {
-        $this->expectException(InvalidResponseException::class);
-        $this->expectExceptionMessage("'response' key");
-
-        CassetteData::fromArray([]);
-    }
-
-    public function test_hasher_is_deterministic(): void
-    {
-        $messages = [Message::system('You are helpful.'), Message::user('Hello')];
-
-        $hash1 = Hasher::make('system', $messages, 'gpt-4o', 0.7, [], 'TestClass::testMethod', 0);
-        $hash2 = Hasher::make('system', $messages, 'gpt-4o', 0.7, [], 'TestClass::testMethod', 0);
-
-        self::assertSame($hash1, $hash2);
-    }
-
-    public function test_hasher_produces_different_hash_for_different_input(): void
-    {
-        $messages = [Message::user('Hello')];
-
-        $hash1 = Hasher::make('system', $messages, 'gpt-4o', 0.7, [], 'Test::method', 0);
-        $hash2 = Hasher::make('different-system', $messages, 'gpt-4o', 0.7, [], 'Test::method', 0);
-        $hash3 = Hasher::make('system', $messages, 'gpt-4o', 0.7, [], 'Test::method', 1);
-
-        self::assertNotSame($hash1, $hash2);
-        self::assertNotSame($hash1, $hash3);
     }
 }

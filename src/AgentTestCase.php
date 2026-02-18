@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace ProbeLLM;
 
+use PHPUnit\Framework\TestCase;
 use ProbeLLM\Attributes\AgentModel;
-use ProbeLLM\Attributes\AgentReplayMode;
 use ProbeLLM\Attributes\AgentSystem;
 use ProbeLLM\Attributes\AgentSystemFile;
 use ProbeLLM\Attributes\AgentTemperature;
@@ -13,17 +13,17 @@ use ProbeLLM\Attributes\AgentTools;
 use ProbeLLM\Attributes\JudgeModel;
 use ProbeLLM\Attributes\JudgeTemperature;
 use ProbeLLM\Cassette\CassetteStore;
+use ProbeLLM\Concerns\ResolvesAttributes;
 use ProbeLLM\DSL\DialogScenario;
 use ProbeLLM\Exception\ConfigurationException;
 use ProbeLLM\Provider\LLMProvider;
 use ProbeLLM\Provider\NullProvider;
-use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionMethod;
 
 abstract class AgentTestCase extends TestCase
 {
-    private ?CassetteStore $cassetteStore = null;
+    use ResolvesAttributes;
 
     /**
      * Override to provide a real LLM provider for live tests.
@@ -43,14 +43,6 @@ abstract class AgentTestCase extends TestCase
     }
 
     /**
-     * Override to change cassette directory.
-     */
-    protected function cassettesDirectory(): ?string
-    {
-        return null;
-    }
-
-    /**
      * Create a new dialog scenario pre-configured with attributes from the current test.
      */
     protected function dialog(): DialogScenario
@@ -59,12 +51,12 @@ abstract class AgentTestCase extends TestCase
         $methodRef = $classRef->getMethod($this->name());
 
         $systemPrompt = $this->resolveSystemPrompt($classRef, $methodRef);
-        $model = $this->resolveModel($classRef, $methodRef);
-        $temperature = $this->resolveTemperature($classRef, $methodRef);
-        $toolClasses = $this->resolveTools($classRef, $methodRef);
+        $model = $this->resolveAttribute($classRef, $methodRef, AgentModel::class, 'model', 'gpt-4o');
+        $temperature = $this->resolveAttribute($classRef, $methodRef, AgentTemperature::class, 'value', 0.7);
+        $toolClasses = $this->resolveAttribute($classRef, $methodRef, AgentTools::class, 'toolClasses', []);
         $replayMode = $this->resolveReplayMode($classRef, $methodRef);
-        $judgeModel = $this->resolveJudgeModel($classRef, $methodRef);
-        $judgeTemperature = $this->resolveJudgeTemperature($classRef, $methodRef);
+        $judgeModel = $this->resolveAttribute($classRef, $methodRef, JudgeModel::class, 'model');
+        $judgeTemperature = $this->resolveAttribute($classRef, $methodRef, JudgeTemperature::class, 'value');
 
         $testName = static::class . '::' . $this->name();
 
@@ -132,105 +124,5 @@ abstract class AgentTestCase extends TestCase
         }
 
         return $content;
-    }
-
-    private function resolveModel(ReflectionClass $classRef, ReflectionMethod $methodRef): string
-    {
-        $methodAttrs = $methodRef->getAttributes(AgentModel::class);
-        if ($methodAttrs !== []) {
-            return end($methodAttrs)->newInstance()->model;
-        }
-
-        $classAttrs = $classRef->getAttributes(AgentModel::class);
-        if ($classAttrs !== []) {
-            return end($classAttrs)->newInstance()->model;
-        }
-
-        return 'gpt-4o';
-    }
-
-    private function resolveTemperature(ReflectionClass $classRef, ReflectionMethod $methodRef): float
-    {
-        $methodAttrs = $methodRef->getAttributes(AgentTemperature::class);
-        if ($methodAttrs !== []) {
-            return end($methodAttrs)->newInstance()->value;
-        }
-
-        $classAttrs = $classRef->getAttributes(AgentTemperature::class);
-        if ($classAttrs !== []) {
-            return end($classAttrs)->newInstance()->value;
-        }
-
-        return 0.7;
-    }
-
-    /**
-     * @return list<class-string>
-     */
-    private function resolveTools(ReflectionClass $classRef, ReflectionMethod $methodRef): array
-    {
-        $methodAttrs = $methodRef->getAttributes(AgentTools::class);
-        if ($methodAttrs !== []) {
-            return $methodAttrs[0]->newInstance()->toolClasses;
-        }
-
-        $classAttrs = $classRef->getAttributes(AgentTools::class);
-        if ($classAttrs !== []) {
-            return $classAttrs[0]->newInstance()->toolClasses;
-        }
-
-        return [];
-    }
-
-    private function resolveJudgeModel(ReflectionClass $classRef, ReflectionMethod $methodRef): ?string
-    {
-        $methodAttrs = $methodRef->getAttributes(JudgeModel::class);
-        if ($methodAttrs !== []) {
-            return end($methodAttrs)->newInstance()->model;
-        }
-
-        $classAttrs = $classRef->getAttributes(JudgeModel::class);
-        if ($classAttrs !== []) {
-            return end($classAttrs)->newInstance()->model;
-        }
-
-        return null;
-    }
-
-    private function resolveJudgeTemperature(ReflectionClass $classRef, ReflectionMethod $methodRef): ?float
-    {
-        $methodAttrs = $methodRef->getAttributes(JudgeTemperature::class);
-        if ($methodAttrs !== []) {
-            return end($methodAttrs)->newInstance()->value;
-        }
-
-        $classAttrs = $classRef->getAttributes(JudgeTemperature::class);
-        if ($classAttrs !== []) {
-            return end($classAttrs)->newInstance()->value;
-        }
-
-        return null;
-    }
-
-    private function resolveReplayMode(ReflectionClass $classRef, ReflectionMethod $methodRef): bool
-    {
-        if ($methodRef->getAttributes(AgentReplayMode::class) !== []) {
-            return true;
-        }
-
-        if ($classRef->getAttributes(AgentReplayMode::class) !== []) {
-            return true;
-        }
-
-        return false;
-    }
-
-    private function getCassetteStore(): CassetteStore
-    {
-        if ($this->cassetteStore === null) {
-            $this->cassetteStore = new CassetteStore($this->cassettesDirectory());
-        }
-
-        return $this->cassetteStore;
     }
 }

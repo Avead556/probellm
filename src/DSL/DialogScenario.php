@@ -7,12 +7,13 @@ namespace ProbeLLM\DSL;
 use ProbeLLM\Cassette\CassetteResolver;
 use ProbeLLM\Cassette\CassetteStore;
 use ProbeLLM\Cassette\Hasher;
+use ProbeLLM\DTO\Attachment;
 use ProbeLLM\DTO\CompletionOptions;
 use ProbeLLM\DTO\Message;
+use ProbeLLM\DTO\ProviderResult;
 use ProbeLLM\DTO\ToolDefinition;
 use ProbeLLM\Exception\ToolResolutionException;
 use ProbeLLM\Provider\LLMProvider;
-use ProbeLLM\Provider\ProviderResult;
 use ProbeLLM\Tools\ToolContract;
 
 final class DialogScenario
@@ -36,6 +37,11 @@ final class DialogScenario
     private ?LLMProvider $judgeProvider = null;
     private ?string $judgeModel = null;
     private ?float $judgeTemperature = null;
+
+    /** @var list<ProviderResult> */
+    private array $mockResults = [];
+
+    private ?CassetteResolver $cassetteResolver = null;
 
     public function __construct(
         private LLMProvider $provider,
@@ -109,6 +115,16 @@ final class DialogScenario
     }
 
     /**
+     * Provide a pre-built result for the next answer() call.
+     */
+    public function withMockResult(ProviderResult $result): self
+    {
+        $this->mockResults[] = $result;
+
+        return $this;
+    }
+
+    /**
      * Override/set the system prompt from DSL (takes precedence over attributes).
      */
     public function system(string $prompt): self
@@ -124,6 +140,28 @@ final class DialogScenario
     public function user(string $text): self
     {
         $this->messages[] = Message::user($text);
+
+        return $this;
+    }
+
+    /**
+     * Append a user message with file attachments.
+     * Strings starting with http(s):// are treated as URLs, otherwise as local file paths.
+     *
+     * @param list<Attachment|string> $attachments
+     */
+    public function userWithAttachments(string $text, array $attachments): self
+    {
+        $resolved = array_map(
+            static fn(Attachment|string $a): Attachment => match (true) {
+                $a instanceof Attachment => $a,
+                str_starts_with($a, 'http://'), str_starts_with($a, 'https://') => Attachment::fromUrl($a),
+                default => Attachment::fromFile($a),
+            },
+            $attachments,
+        );
+
+        $this->messages[] = Message::userWithAttachments($text, $resolved);
 
         return $this;
     }
@@ -185,13 +223,11 @@ final class DialogScenario
         $this->messages[] = Message::assistant($result->getContent(), $result->getToolCalls());
         $this->lastResult = $result;
 
-        $resolver = new CassetteResolver($this->cassetteStore, $this->replayMode);
-
         $expectations = new AnswerExpectations(
             result: $result,
             provider: $this->provider,
             providerOptions: new CompletionOptions(model: $this->model, temperature: $this->temperature),
-            cassetteResolver: $resolver,
+            cassetteResolver: $this->getCassetteResolver(),
             testName: $this->testName,
             turnIndex: $this->turnIndex,
             judgeProvider: $this->judgeProvider,
@@ -207,6 +243,10 @@ final class DialogScenario
 
     private function executeTurn(): ProviderResult
     {
+        if ($this->mockResults !== []) {
+            return array_shift($this->mockResults);
+        }
+
         $tools = $this->resolveToolDefinitions();
         $fullMessages = $this->buildMessages();
 
@@ -225,9 +265,7 @@ final class DialogScenario
             $this->turnIndex,
         );
 
-        $resolver = new CassetteResolver($this->cassetteStore, $this->replayMode);
-
-        return $resolver->resolve(
+        return $this->getCassetteResolver()->resolve(
             $cassetteKey,
             fn(): ProviderResult => $this->provider->complete($fullMessages, $tools, $options),
             fn(): array => [
@@ -251,6 +289,11 @@ final class DialogScenario
         }
 
         return [...$result, ...$this->messages];
+    }
+
+    private function getCassetteResolver(): CassetteResolver
+    {
+        return $this->cassetteResolver ??= new CassetteResolver($this->cassetteStore, $this->replayMode);
     }
 
     /**

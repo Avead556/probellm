@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace ProbeLLM\DTO;
 
 use ProbeLLM\Exception\InvalidResponseException;
-use ProbeLLM\Provider\ProviderResult;
 
 final readonly class CassetteData
 {

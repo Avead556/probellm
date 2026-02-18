@@ -7,33 +7,33 @@ namespace ProbeLLM\Provider;
 use ProbeLLM\DTO\CompletionOptions;
 use ProbeLLM\DTO\OpenAI\OpenAIRequest;
 use ProbeLLM\DTO\OpenAI\OpenAIResponse;
-use ProbeLLM\Exception\ConfigurationException;
-use ProbeLLM\Exception\ProviderException;
-use JsonException;
+use ProbeLLM\DTO\ProviderResult;
+use ProbeLLM\Enum\BaseUrl;
+use ProbeLLM\Http\HttpClient;
 
 /**
  * Provider for any OpenAI-compatible API (OpenAI, Azure OpenAI, OpenRouter, Groq, Together, Ollama, etc.).
  */
-final class OpenAICompatibleProvider implements LLMProvider
+final readonly class OpenAICompatibleProvider implements LLMProvider
 {
+    private string $baseUrl;
+
     public function __construct(
-        private readonly string $apiKey,
-        private readonly string $baseUrl = 'https://api.openai.com/v1',
-        private readonly int $timeout = 60,
+        private string $apiKey,
+        string $baseUrl = '',
+        private int $timeout = 60,
     ) {
-        if (! extension_loaded('curl')) {
-            throw new ConfigurationException('OpenAICompatibleProvider requires the curl PHP extension.');
-        }
+        $this->baseUrl = $baseUrl !== '' ? $baseUrl : BaseUrl::OPENAI->value;
     }
 
     public static function openAI(string $apiKey, int $timeout = 60): self
     {
-        return new self($apiKey, 'https://api.openai.com/v1', $timeout);
+        return new self($apiKey, BaseUrl::OPENAI->value, $timeout);
     }
 
     public static function openRouter(string $apiKey, int $timeout = 60): self
     {
-        return new self($apiKey, 'https://openrouter.ai/api/v1', $timeout);
+        return new self($apiKey, BaseUrl::OPEN_ROUTER->value, $timeout);
     }
 
     public function complete(array $messages, array $tools, CompletionOptions $options): ProviderResult
@@ -42,42 +42,13 @@ final class OpenAICompatibleProvider implements LLMProvider
 
         $url = rtrim($this->baseUrl, '/') . '/chat/completions';
 
-        $ch = curl_init($url);
-
-        if ($ch === false) {
-            throw new ProviderException('Failed to init curl handle.');
-        }
-
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_HTTPHEADER => [
-                'Content-Type: application/json',
-                'Authorization: Bearer ' . $this->apiKey,
-            ],
-            CURLOPT_POSTFIELDS => json_encode($request->toArray(), JSON_THROW_ON_ERROR),
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => $this->timeout,
-        ]);
-
-        $raw = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error = curl_error($ch);
-
-        if ($raw === false) {
-            throw new ProviderException("OpenAI request failed: {$error}");
-        }
-
-        if ($code !== 200) {
-            throw new ProviderException(
-                "OpenAI API returned HTTP {$code}: " . mb_substr((string) $raw, 0, 500),
-            );
-        }
-
-        try {
-            $json = json_decode((string) $raw, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException $e) {
-            throw new ProviderException('OpenAI returned invalid JSON: ' . $e->getMessage());
-        }
+        $json = HttpClient::postJson(
+            $url,
+            ['Authorization: Bearer ' . $this->apiKey],
+            $request->toArray(),
+            $this->timeout,
+            'OpenAI',
+        );
 
         $response = OpenAIResponse::fromArray($json);
         $message = $response->getFirstChoice()->getMessage();

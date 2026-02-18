@@ -7,10 +7,10 @@ namespace ProbeLLM\Attributes;
 use Attribute;
 
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD)]
-final class AgentTools
+final readonly class AgentTools
 {
     /** @var array<class-string> */
-    public readonly array $toolClasses;
+    public array $toolClasses;
 
     public function __construct(string ...$toolClasses)
     {

@@ -6,10 +6,10 @@ namespace ProbeLLM\Attributes;
 
 use Attribute;
 
-#[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
-final class AgentModel
+#[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD)]
+final readonly class AgentModel
 {
     public function __construct(
-        public readonly string $model,
+        public string $model,
     ) {}
 }

@@ -6,10 +6,10 @@ namespace ProbeLLM\Attributes;
 
 use Attribute;
 
-#[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
-final class AgentTemperature
+#[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD)]
+final readonly class AgentTemperature
 {
     public function __construct(
-        public readonly float $value,
+        public float $value,
     ) {}
 }

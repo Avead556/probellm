@@ -7,9 +7,9 @@ namespace ProbeLLM\Attributes;
 use Attribute;
 
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
-final class AgentSystemFile
+final readonly class AgentSystemFile
 {
     public function __construct(
-        public readonly string $path,
+        public string $path,
     ) {}
 }
