@@ -26,6 +26,9 @@ trait ResolvesAttributes
 
     /**
      * Resolve an attribute value with method-first, then class, then default.
+     *
+     * @template T of object
+     * @param ReflectionClass<T> $classRef
      */
     private function resolveAttribute(
         ReflectionClass $classRef,
@@ -51,6 +54,9 @@ trait ResolvesAttributes
 
     /**
      * Check whether an attribute is present on method or class.
+     *
+     * @template T of object
+     * @param ReflectionClass<T> $classRef
      */
     private function hasAttribute(
         ReflectionClass $classRef,
@@ -61,6 +67,10 @@ trait ResolvesAttributes
             || $classRef->getAttributes($attributeClass) !== [];
     }
 
+    /**
+     * @template T of object
+     * @param ReflectionClass<T> $classRef
+     */
     private function resolveReplayMode(ReflectionClass $classRef, ReflectionMethod $methodRef): bool
     {
         return $this->hasAttribute($classRef, $methodRef, AgentReplayMode::class);

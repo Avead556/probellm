@@ -84,8 +84,8 @@ final readonly class Attachment
 
     private static function mimeFromUrl(string $url): string
     {
-        $path = parse_url($url, PHP_URL_PATH) ?? '';
-        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $path = parse_url($url, PHP_URL_PATH);
+        $ext = is_string($path) ? strtolower(pathinfo($path, PATHINFO_EXTENSION)) : '';
 
         return match ($ext) {
             'png' => 'image/png',

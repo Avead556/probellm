@@ -57,8 +57,8 @@ final readonly class AnthropicResponse
         foreach ($this->content as $block) {
             if ($block->isToolUse()) {
                 $toolCalls[] = new ToolCall(
-                    id: $block->getId(),
-                    name: $block->getName(),
+                    id: $block->getId() ?? '',
+                    name: $block->getName() ?? '',
                     arguments: $block->getInput() ?? [],
                 );
             }

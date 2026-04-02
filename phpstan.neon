@@ -1,0 +1,20 @@
+parameters:
+    level: 8
+    paths:
+        - src
+        - tests
+        - examples
+    excludePaths:
+        - src/Pest/Autoload.php
+    bootstrapFiles:
+        - stubs/pest.php
+    ignoreErrors:
+        # Pest example files use arrow functions returning values, but PHPDoc expects void closures
+        - identifier: argument.type
+          path: examples/*
+        # Test files pass untyped closures
+        - identifier: argument.type
+          path: tests/*
+        # Test helpers with generic array params
+        - identifier: missingType.iterableValue
+          path: tests/*

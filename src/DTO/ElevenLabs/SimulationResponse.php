@@ -87,19 +87,19 @@ final readonly class SimulationResponse
      */
     public static function fromArray(array $data): self
     {
-        $transcript = array_map(
+        $transcript = array_values(array_map(
             static fn(array $entry): TranscriptEntry => TranscriptEntry::fromArray($entry),
             $data['simulated_conversation'] ?? $data['transcript'] ?? [],
-        );
+        ));
 
         $rawEvalResults = $data['analysis']['evaluation_criteria_results_list']
             ?? $data['evaluation_results']
             ?? [];
 
-        $evaluationResults = array_map(
+        $evaluationResults = array_values(array_map(
             static fn(array $result): EvaluationResult => EvaluationResult::fromArray($result),
             $rawEvalResults,
-        );
+        ));
 
         return new self(
             transcript: $transcript,

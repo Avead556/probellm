@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace ProbeLLM\DSL;
 
+use Closure;
+use PHPUnit\Framework\Assert;
 use ProbeLLM\Cassette\CassetteResolver;
 use ProbeLLM\Cassette\CassetteStore;
 use ProbeLLM\Cassette\Hasher;
@@ -11,10 +13,12 @@ use ProbeLLM\DTO\Attachment;
 use ProbeLLM\DTO\CompletionOptions;
 use ProbeLLM\DTO\Message;
 use ProbeLLM\DTO\ProviderResult;
+use ProbeLLM\DTO\StatisticalResult;
 use ProbeLLM\DTO\ToolDefinition;
 use ProbeLLM\Exception\ToolResolutionException;
 use ProbeLLM\Provider\LLMProvider;
 use ProbeLLM\Tools\ToolContract;
+use Throwable;
 
 final class DialogScenario
 {
@@ -125,13 +129,11 @@ final class DialogScenario
     }
 
     /**
-     * Override/set the system prompt from DSL (takes precedence over attributes).
+     * Alias for withSystem() — shorthand for inline DSL usage.
      */
     public function system(string $prompt): self
     {
-        $this->systemPrompt = $prompt;
-
-        return $this;
+        return $this->withSystem($prompt);
     }
 
     /**
@@ -214,16 +216,204 @@ final class DialogScenario
     /**
      * Execute one turn and run assertions.
      *
-     * @param callable(AnswerExpectations): void $assertions
+     * @param Closure(AnswerExpectations): void $assertions
      */
-    public function answer(callable $assertions): self
+    public function answer(Closure $assertions): self
     {
         $result = $this->executeTurn();
 
         $this->messages[] = Message::assistant($result->getContent(), $result->getToolCalls());
         $this->lastResult = $result;
 
-        $expectations = new AnswerExpectations(
+        $assertions($this->buildExpectations($result));
+
+        $this->turnIndex++;
+
+        return $this;
+    }
+
+    /**
+     * Run an agentic loop: send message, get response, execute tools, feed results back, repeat.
+     *
+     * Automatically handles the tool call → tool result → next turn cycle until
+     * the model stops calling tools or maxIterations is reached.
+     *
+     * @param int $maxIterations Safety limit for the loop.
+     * @param array<string, Closure(array<string, mixed>): mixed> $toolExecutors Map of tool name → executor function.
+     * @param Closure(AnswerExpectations): void $assertions Assertions to run on the final answer.
+     */
+    public function agentLoop(
+        int $maxIterations,
+        array $toolExecutors,
+        Closure $assertions,
+    ): self {
+        for ($i = 0; $i < $maxIterations; $i++) {
+            $result = $this->executeTurn();
+            $this->messages[] = Message::assistant($result->getContent(), $result->getToolCalls());
+            $this->lastResult = $result;
+            $this->turnIndex++;
+
+            $toolCalls = $result->getToolCalls();
+
+            if ($toolCalls === []) {
+                // No tool calls — this is the final answer.
+                $assertions($this->buildExpectations($result));
+
+                return $this;
+            }
+
+            // Execute each tool call and feed results back.
+            foreach ($toolCalls as $tc) {
+                $name = $tc->getName();
+
+                if (! isset($toolExecutors[$name])) {
+                    Assert::fail(
+                        "Agent loop: tool '{$name}' was called but no executor is registered. "
+                        . 'Registered executors: ' . implode(', ', array_keys($toolExecutors)) . '.',
+                    );
+                }
+
+                $output = $toolExecutors[$name]($tc->getArguments());
+                $json = is_string($output) ? $output : json_encode($output, JSON_THROW_ON_ERROR);
+
+                $this->messages[] = Message::tool($tc->getId(), $name, $json);
+            }
+        }
+
+        // Max iterations reached — run assertions on the last result.
+        if ($this->lastResult !== null) {
+            $assertions($this->buildExpectations($this->lastResult));
+        }
+
+        return $this;
+    }
+
+    /**
+     * Execute one turn N times and assert that at least passRate fraction of runs pass.
+     *
+     * Each run gets a unique cassette key (via runIndex) so different responses are recorded.
+     * After completion, the conversation continues with the first result (for multi-turn chains).
+     *
+     * @param int   $runs       Number of times to execute and test this turn.
+     * @param float $passRate   Required fraction of passing runs (0.0–1.0).
+     * @param Closure(AnswerExpectations): void $assertions  Assertions to run on each result.
+     */
+    public function answerSampled(int $runs, float $passRate, Closure $assertions): self
+    {
+        $stat = $this->collectStatisticalRuns($runs, $assertions);
+
+        Assert::assertGreaterThanOrEqual(
+            $passRate,
+            $stat->getPassRate(),
+            sprintf(
+                "Statistical assertion failed: %d/%d runs passed (%.0f%%), required %.0f%%.\n\nFailures:\n%s",
+                $stat->getPassed(),
+                $runs,
+                $stat->getPassRate() * 100,
+                $passRate * 100,
+                implode("\n", $stat->getFailures()),
+            ),
+        );
+
+        return $this;
+    }
+
+    /**
+     * Execute one turn N times and assert all runs produce the same response.
+     *
+     * Optionally runs assertions on each result too.
+     *
+     * @param int $runs Number of times to execute this turn.
+     * @param (Closure(AnswerExpectations): void)|null $assertions Optional assertions per run.
+     */
+    public function answerConsistently(int $runs, ?Closure $assertions = null): self
+    {
+        $stat = $this->collectStatisticalRuns($runs, $assertions);
+
+        $normalized = array_map(
+            static fn(string $c): string => mb_strtolower(trim($c)),
+            $stat->getContents(),
+        );
+
+        $unique = array_unique($normalized);
+
+        Assert::assertCount(
+            1,
+            $unique,
+            sprintf(
+                "Consistency check failed: %d unique responses out of %d runs.\nResponses:\n%s",
+                count($unique),
+                $runs,
+                implode("\n---\n", array_map(
+                    static fn(string $c, int $i): string => "Run {$i}: " . mb_substr($c, 0, 200),
+                    $stat->getContents(),
+                    array_keys($stat->getContents()),
+                )),
+            ),
+        );
+
+        return $this;
+    }
+
+    /**
+     * Execute one turn N times and return the statistical result without asserting.
+     *
+     * Useful for custom analysis or reporting.
+     *
+     * @param int $runs Number of times to execute this turn.
+     * @param Closure(AnswerExpectations): void $assertions Assertions to run on each result.
+     */
+    public function sampleAnswer(int $runs, Closure $assertions): StatisticalResult
+    {
+        return $this->collectStatisticalRuns($runs, $assertions);
+    }
+
+    /**
+     * Execute one turn N times, collect results and continue conversation with the first result.
+     *
+     * @param Closure(AnswerExpectations): void|null $assertions Assertions to run on each result.
+     */
+    private function collectStatisticalRuns(int $runs, ?Closure $assertions): StatisticalResult
+    {
+        $passed = 0;
+        $failures = [];
+        $contents = [];
+        $firstResult = null;
+
+        for ($run = 0; $run < $runs; $run++) {
+            $result = $this->executeTurn($run);
+            $contents[] = $result->getContent();
+
+            if ($firstResult === null) {
+                $firstResult = $result;
+            }
+
+            if ($assertions !== null) {
+                try {
+                    $assertions($this->buildExpectations($result));
+                    $passed++;
+                } catch (Throwable $e) {
+                    $failures[] = "Run {$run}: {$e->getMessage()}";
+                }
+            } else {
+                $passed++;
+            }
+        }
+
+        // Continue conversation with the first result for multi-turn chains.
+        if ($firstResult !== null) {
+            $this->messages[] = Message::assistant($firstResult->getContent(), $firstResult->getToolCalls());
+            $this->lastResult = $firstResult;
+        }
+
+        $this->turnIndex++;
+
+        return new StatisticalResult($runs, $passed, $failures, $contents);
+    }
+
+    private function buildExpectations(ProviderResult $result): AnswerExpectations
+    {
+        return new AnswerExpectations(
             result: $result,
             provider: $this->provider,
             providerOptions: new CompletionOptions(model: $this->model, temperature: $this->temperature),
@@ -233,15 +423,11 @@ final class DialogScenario
             judgeProvider: $this->judgeProvider,
             judgeModel: $this->judgeModel,
             judgeTemperature: $this->judgeTemperature,
+            systemPrompt: $this->systemPrompt,
         );
-        $assertions($expectations);
-
-        $this->turnIndex++;
-
-        return $this;
     }
 
-    private function executeTurn(): ProviderResult
+    private function executeTurn(int $runIndex = 0): ProviderResult
     {
         if ($this->mockResults !== []) {
             return array_shift($this->mockResults);
@@ -255,13 +441,18 @@ final class DialogScenario
             temperature: $this->temperature,
         );
 
+        // Include runIndex in the test name so each statistical run gets a unique cassette key.
+        $testNameForHash = $runIndex > 0
+            ? $this->testName . ':run:' . $runIndex
+            : $this->testName;
+
         $cassetteKey = Hasher::make(
             $this->systemPrompt,
             $fullMessages,
             $this->model,
             $this->temperature,
             $tools,
-            $this->testName,
+            $testNameForHash,
             $this->turnIndex,
         );
 
@@ -304,7 +495,7 @@ final class DialogScenario
         $defs = [];
 
         foreach ($this->toolClasses as $class) {
-            if (! is_a($class, ToolContract::class, true)) {
+            if (! is_a($class, ToolContract::class, true)) { // @phpstan-ignore function.alreadyNarrowedType
                 throw new ToolResolutionException("Tool class '{$class}' must implement " . ToolContract::class);
             }
 

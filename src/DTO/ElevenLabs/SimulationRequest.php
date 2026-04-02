@@ -109,10 +109,10 @@ final readonly class SimulationRequest
 
         $userConfig = SimulatedUserConfig::fromArray($spec['simulated_user_config'] ?? []);
 
-        $criteria = array_map(
+        $criteria = array_values(array_map(
             static fn(array $c): EvaluationCriterion => EvaluationCriterion::fromArray($c),
             $data['extra_evaluation_criteria'] ?? $data['evaluation_criteria'] ?? [],
-        );
+        ));
 
         $toolMocks = [];
         $toolMockConfig = $spec['tool_mock_config'] ?? $data['tool_overrides'] ?? [];

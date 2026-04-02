@@ -1,0 +1,4 @@
+[
+  {"input": "Capital of France?", "expected": "Paris"},
+  {"input": "Capital of Japan?", "expected": "Tokyo"}
+]

@@ -48,9 +48,11 @@ final readonly class CassetteData
             "Cassette {$path} is missing the 'response' key.",
         );
 
+        /** @var list<array{id: string, name: string, arguments: array<string, mixed>}> $rawToolCalls */
+        $rawToolCalls = $response['tool_calls'] ?? [];
         $toolCalls = array_map(
             static fn(array $tc): ToolCall => ToolCall::fromArray($tc),
-            $response['tool_calls'] ?? [],
+            $rawToolCalls,
         );
 
         $meta = $data['meta'] ?? [];

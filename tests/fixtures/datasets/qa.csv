@@ -1,0 +1,4 @@
+input,expected,category
+"Capital of France?",Paris,geography
+"Capital of Japan?",Tokyo,geography
+"Capital of Germany?",Berlin,geography

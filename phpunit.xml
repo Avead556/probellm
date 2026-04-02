@@ -10,6 +10,7 @@
         </testsuite>
         <testsuite name="Examples">
             <directory>examples</directory>
+            <exclude>examples/PestExampleTest.php</exclude>
         </testsuite>
     </testsuites>
     <source>

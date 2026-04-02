@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ProbeLLM\DSL;
 
+use Closure;
 use PHPUnit\Framework\Assert;
 use ProbeLLM\Cassette\CassetteResolver;
 use ProbeLLM\Cassette\CassetteStore;
@@ -65,6 +66,9 @@ final class ElevenLabsScenario
         return $this;
     }
 
+    /**
+     * @param array<string, mixed> $mockResponse
+     */
     public function withToolMock(string $toolName, array $mockResponse): self
     {
         $this->toolMocks[$toolName] = json_encode($mockResponse, JSON_THROW_ON_ERROR);
@@ -128,9 +132,9 @@ final class ElevenLabsScenario
     /**
      * Execute the simulation and run assertions.
      *
-     * @param callable(ElevenLabsExpectations): void $assertions
+     * @param Closure(ElevenLabsExpectations): void $assertions
      */
-    public function run(callable $assertions): self
+    public function run(Closure $assertions): self
     {
         $request = new SimulationRequest(
             agentId: $this->agentId,
@@ -168,7 +172,7 @@ final class ElevenLabsScenario
                 fn(): array => ['request' => $request->toArray()],
                 ['provider' => CassetteSource::ELEVENLABS->value, 'agent_id' => $this->agentId],
             );
-        } catch (ProviderException $e) {
+        } catch (ProviderException $e) { // @phpstan-ignore catch.neverThrown
             Assert::markTestSkipped('ElevenLabs API unavailable: ' . $e->getMessage());
         }
 

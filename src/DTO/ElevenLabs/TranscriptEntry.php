@@ -94,15 +94,15 @@ final readonly class TranscriptEntry
      */
     public static function fromArray(array $data): self
     {
-        $toolCalls = array_map(
+        $toolCalls = array_values(array_map(
             static fn(array $tc): TranscriptToolCall => TranscriptToolCall::fromArray($tc),
             $data['tool_calls'] ?? [],
-        );
+        ));
 
-        $toolResults = array_map(
+        $toolResults = array_values(array_map(
             static fn(array $tr): TranscriptToolResult => TranscriptToolResult::fromArray($tr),
             $data['tool_results'] ?? [],
-        );
+        ));
 
         $meta = $data['agent_metadata'] ?? [];
 

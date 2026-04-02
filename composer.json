@@ -16,12 +16,16 @@
     "require-dev": {
         "phpunit/phpunit": "^11.0|^12.0",
         "orchestra/testbench": "^9.0|^10.0",
-        "friendsofphp/php-cs-fixer": "^3.93"
+        "friendsofphp/php-cs-fixer": "^3.93",
+        "phpstan/phpstan": "^2.1"
     },
     "autoload": {
         "psr-4": {
             "ProbeLLM\\": "src/"
-        }
+        },
+        "files": [
+            "src/Pest/Autoload.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {
@@ -35,6 +39,20 @@
                 "ProbeLLM\\ProbeLLMServiceProvider"
             ]
         }
+    },
+    "scripts": {
+        "test": "./vendor/bin/phpunit --testsuite=Unit",
+        "phpstan": "./vendor/bin/phpstan analyse --memory-limit=512M",
+        "cs-check": "./vendor/bin/php-cs-fixer fix --dry-run --diff",
+        "cs-fix": "./vendor/bin/php-cs-fixer fix --diff",
+        "check": [
+            "@cs-check",
+            "@phpstan",
+            "@test"
+        ]
+    },
+    "suggest": {
+        "pestphp/pest": "Required for Pest plugin support — global helpers and custom expectations (^2.0|^3.0)"
     },
     "minimum-stability": "stable",
     "prefer-stable": true

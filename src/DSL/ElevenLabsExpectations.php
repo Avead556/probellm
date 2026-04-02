@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ProbeLLM\DSL;
 
+use Closure;
 use PHPUnit\Framework\Assert;
 use ProbeLLM\Cassette\CassetteResolver;
 use ProbeLLM\Cassette\CassetteStore;
@@ -79,9 +80,9 @@ final class ElevenLabsExpectations
     /**
      * Assert on the arguments of a specific tool call via callback.
      *
-     * @param callable(array<string, mixed>): void $predicate
+     * @param Closure(array<string, mixed>): void $predicate
      */
-    public function assertToolArgs(string $toolName, callable $predicate): self
+    public function assertToolArgs(string $toolName, Closure $predicate): self
     {
         $tc = $this->findToolCall($toolName);
 
